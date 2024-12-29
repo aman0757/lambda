@@ -1,0 +1,49 @@
+import boto3
+
+def lambda_handler(event, context):
+    sns_client = boto3.client('sns')
+    ec2_client = boto3.client('ec2')
+
+    # Replace with your new SNS Topic ARN
+    sns_topic_arn = "arn:aws:sns:ap-south-1:307946632837:pip"
+
+    try:
+        # Log the full event to debug
+        print("Event Received: ", event)
+
+        # Extract instance ID from the event
+        instance_id = event['detail']['instance-id']
+        print(f"Instance ID: {instance_id}")
+
+        # Describe the EC2 instance
+        response = ec2_client.describe_instances(InstanceIds=[instance_id])
+
+        public_ips = []
+        for reservation in response['Reservations']:
+            for instance in reservation['Instances']:
+                # Check if the instance has a public IP address
+                if 'PublicIpAddress' in instance:
+                    public_ips.append(instance['InstanceId'])
+
+        # If public IP is found, send an SNS notification
+        if public_ips:
+            message = f"Instance with public IP detected: {public_ips}"
+            print(message)
+            
+            sns_client.publish(
+                TopicArn=sns_topic_arn,
+                Subject="Public IP Alert!",
+                Message=message
+            )
+
+        return {
+            'statusCode': 200,
+            'body': f"Checked instance {instance_id}. Found public IPs for {public_ips}."
+        }
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        return {
+            'statusCode': 500,
+            'body': f"Error: {e}"
+        }
